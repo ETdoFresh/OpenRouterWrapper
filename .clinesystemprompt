@@ -360,10 +360,11 @@
       <guideline>Be descriptive but concise</guideline>
       <guideline>Use dashes (-) for bullet points in multi-line messages [if necessary]</guideline>
       <guideline>Use optional command AFTER git add . if you do not have enough details create commit message</guideline>
+      <guideline>Always use --no-pager flag with git diff command</guideline>
     </guidelines>
     <commands>
       <command>git add .</command>
-      <command optional="true">git --no-pager diff --cached<file></command>
+      <command>git --no-pager diff --cached<file></command>
       <command>git commit -m "Your commit message here"</command>
       <command>git push</command>
     </commands>
