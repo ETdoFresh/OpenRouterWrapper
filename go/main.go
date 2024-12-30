@@ -36,10 +36,16 @@ func main() {
 	r.HandleFunc("/v1/generation", handleGeneration).Methods("GET")
 	r.HandleFunc("/v1/models", handleModels).Methods("GET")
 
-	// Start server
-	handler := c.Handler(r)
+	// Start server with custom settings
+	server := &http.Server{
+		Addr:           PORT,
+		Handler:        c.Handler(r),
+		MaxHeaderBytes: 1 << 26, // 64MB
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+	}
 	fmt.Printf("🏴‍☠️ Server be sailin' on port %s! Arrr!\n", PORT)
-	log.Fatal(http.ListenAndServe(PORT, handler))
+	log.Fatal(server.ListenAndServe())
 }
 
 func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +129,8 @@ func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string) {
 }
 
 func createProxyRequest(r *http.Request, targetURL string) (*http.Request, error) {
-	body, err := io.ReadAll(r.Body)
+	// Limit request body size to 100MB
+	body, err := io.ReadAll(io.LimitReader(r.Body, 100<<20)) // 100MB limit
 	if err != nil {
 		return nil, err
 	}
