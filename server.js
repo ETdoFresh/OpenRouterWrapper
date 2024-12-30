@@ -34,18 +34,68 @@ app.post('/v1/chat/completions', async (req, res) => {
         });
 
         if (req.body.stream === true) {
-            // Pipe the streaming response directly to the client
-            response.data.pipe(res);
-            
-            // Handle stream end and errors
-            response.data.on('end', () => {
-                res.end();
-            });
-            
-            response.data.on('error', (error) => {
-                console.error('Stream error:', error);
-                res.end();
-            });
+            let retryCount = 0;
+            const maxRetries = 5;
+            const retryDelay = 2000; // 2 seconds
+
+            const attemptStream = async () => {
+                try {
+                    const streamResponse = await axios.post(`${OPENROUTER_API_URL}/chat/completions`, req.body, {
+                        headers: {
+                            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                            'HTTP-Referer': req.headers['referer'] || 'http://localhost:3000',
+                            'X-Title': 'OpenRouter API Wrapper',
+                            'Content-Type': 'application/json'
+                        },
+                        responseType: 'stream'
+                    });
+
+                    let hasStarted = false;
+                    const timeoutId = setTimeout(() => {
+                        if (!hasStarted && retryCount < maxRetries) {
+                            console.log(`Arrr! Stream didn't start in time, retry attempt ${retryCount + 1} of ${maxRetries}`);
+                            retryCount++;
+                            streamResponse.data.destroy();
+                            attemptStream();
+                        }
+                    }, retryDelay);
+
+                    streamResponse.data.on('data', (chunk) => {
+                        hasStarted = true;
+                        clearTimeout(timeoutId);
+                        res.write(chunk);
+                    });
+
+                    streamResponse.data.on('end', () => {
+                        clearTimeout(timeoutId);
+                        res.end();
+                    });
+
+                    streamResponse.data.on('error', (error) => {
+                        clearTimeout(timeoutId);
+                        console.error('Stream error:', error);
+                        if (retryCount < maxRetries) {
+                            console.log(`Yarrr! Stream error, retry attempt ${retryCount + 1} of ${maxRetries}`);
+                            retryCount++;
+                            attemptStream();
+                        } else {
+                            console.error('All retry attempts failed!');
+                            res.end();
+                        }
+                    });
+                } catch (error) {
+                    if (retryCount < maxRetries) {
+                        console.log(`Blimey! Connection error, retry attempt ${retryCount + 1} of ${maxRetries}`);
+                        retryCount++;
+                        attemptStream();
+                    } else {
+                        console.error('All retry attempts failed!');
+                        res.status(500).json({ error: 'Failed to establish stream after maximum retries' });
+                    }
+                }
+            };
+
+            await attemptStream();
         } else {
             res.json(response.data);
         }
