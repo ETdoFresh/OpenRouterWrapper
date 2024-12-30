@@ -52,7 +52,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     let hasStarted = false;
                     const timeoutId = setTimeout(() => {
                         if (!hasStarted && retryCount < maxRetries) {
-                            console.log(`Arrr! Stream didn't start in time, retry attempt ${retryCount + 1} of ${maxRetries}`);
+                            console.log(`🏴‍☠️ Stream timeout! Retry attempt ${retryCount + 1}/${maxRetries}`);
                             retryCount++;
                             streamResponse.data.destroy();
                             attemptStream();
@@ -74,7 +74,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                         clearTimeout(timeoutId);
                         console.error('Stream error:', error);
                         if (retryCount < maxRetries) {
-                            console.log(`Yarrr! Stream error, retry attempt ${retryCount + 1} of ${maxRetries}`);
+                            console.log(`🏴‍☠️ Stream error! Retry attempt ${retryCount + 1}/${maxRetries}`);
                             retryCount++;
                             attemptStream();
                         } else {
@@ -84,7 +84,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     });
                 } catch (error) {
                     if (retryCount < maxRetries) {
-                        console.log(`Blimey! Connection error, retry attempt ${retryCount + 1} of ${maxRetries}`);
+                        console.log(`🏴‍☠️ Connection error! Retry attempt ${retryCount + 1}/${maxRetries}`);
                         retryCount++;
                         attemptStream();
                     } else {
