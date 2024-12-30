@@ -36,7 +36,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         if (req.body.stream === true) {
             let retryCount = 0;
             const maxRetries = 5;
-            const baseRetryDelay = 1000; // 1 second base delay
+            const baseRetryDelay = 500; // 500ms base delay
             let streamTimeout = null;
             let lastDataTime = Date.now();
 

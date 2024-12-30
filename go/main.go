@@ -19,7 +19,7 @@ const (
 	PORT               = ":5050"
 	MAX_RETRIES        = 5
 	BASE_RETRY_DELAY   = 500 * time.Millisecond
-	MAX_RETRY_DELAY    = 5 * time.Second
+	MAX_RETRY_DELAY    = 10 * time.Second
 )
 
 func main() {
@@ -86,10 +86,23 @@ func handleStreamingChatCompletion(w http.ResponseWriter, r *http.Request) {
 		}
 		defer resp.Body.Close()
 
-		// Stream the response
-		_, err = io.Copy(w, resp.Body)
-		if err != nil {
-			log.Printf("🏴‍☠️ Stream error! Retry attempt %d/%d\n", attempt+1, MAX_RETRIES)
+		// Create a channel to handle stream timeout
+		done := make(chan bool)
+		timeout := time.NewTimer(15 * time.Second)
+		
+		go func() {
+			// Stream the response
+			_, err = io.Copy(w, resp.Body)
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			timeout.Stop()
+			return
+		case <-timeout.C:
+			log.Printf("🏴‍☠️ Stream timeout! Retry attempt %d/%d\n", attempt+1, MAX_RETRIES)
+			resp.Body.Close()
 			time.Sleep(calculateRetryDelay(attempt))
 			continue
 		}
