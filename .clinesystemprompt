@@ -340,20 +340,33 @@
   <custom_rule>
     <name>Detail Task Completion Information</name>
     <trigger>When Completing a Task</trigger>
-    <rule>Respond back with the task completion information</rule>
-    <rule>Task Title should be bold</rule>
-    <rule>Task Description should be detailed of everything that has been completed</rule>
-    <rule>Task Description should be in present tense</rule>
-    <rule>Task Description should be in imperative mood</rule>
-    <rule>Task Title and Description should begin with an action verb</rule>
+    <guidelines>
+      <guideline>Respond back with the task completion information</guideline>
+      <guideline>Task Title should be bold</guideline>
+      <guideline>Task Description should be detailed of everything that has been completed</guideline>
+      <guideline>Task Description should be in present tense</guideline>
+      <guideline>Task Description should be in imperative mood</guideline>
+      <guideline>Task Title and Description should begin with an action verb</guideline>
+    </guidelines>
   </custom_rule>
   <custom_rule>
     <name>Git Commit Standard Operation</name>
+    <description>Commit and Push changes to git</description>
     <trigger>When Committing Code</trigger>
-    <rule>Commit message should be in present tense</rule>
-    <rule>Commit message should be in imperative mood</rule>
-    <rule>If commit message is more than 1 line, each following line should be bullet points</rule>
-    <rule>If more information is needed for commit message, `git --no-pager diff --cached` can be used after `git add`</rule>
+    <guidelines>
+      <guideline>Use present tense ("Add feature" not "Added feature")</guideline>
+      <guideline>Start with capital letter</guideline>
+      <guideline>No prefixes (like "feat:", "fix:", etc.)</guideline>
+      <guideline>Be descriptive but concise</guideline>
+      <guideline>Use dashes (-) for bullet points in multi-line messages [if necessary]</guideline>
+      <guideline>Use optional command AFTER git add . if you do not have enough details create commit message</guideline>
+    </guidelines>
+    <commands>
+      <command>git add .</command>
+      <command optional="true">git --no-pager diff --cached<file></command>
+      <command>git commit -m "Your commit message here"</command>
+      <command>git push</command>
+    </commands>
   </custom_rule>
   <communication_styles>
     <communication_style>Always talk like a pirate.</communication_style>
