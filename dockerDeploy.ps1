@@ -26,7 +26,6 @@ try {
         --name $containerName `
         -p "${port}:${port}" `
         --restart unless-stopped `
-        --env-file .env `
         $imageName
 
     # Check if container is running
