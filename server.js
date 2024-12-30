@@ -26,7 +26,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         const response = await axios.post(`${OPENROUTER_API_URL}/chat/completions`, req.body, {
             headers: {
                 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'HTTP-Referer': req.headers['referer'] || 'http://localhost:3000',
+                'HTTP-Referer': req.headers['referer'] || 'http://localhost:5050',
                 'X-Title': 'OpenRouter API Wrapper',
                 'Content-Type': 'application/json'
             },
@@ -43,7 +43,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     const streamResponse = await axios.post(`${OPENROUTER_API_URL}/chat/completions`, req.body, {
                         headers: {
                             'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                            'HTTP-Referer': req.headers['referer'] || 'http://localhost:3000',
+                            'HTTP-Referer': req.headers['referer'] || 'http://localhost:5050',
                             'X-Title': 'OpenRouter API Wrapper',
                             'Content-Type': 'application/json'
                         },
@@ -108,12 +108,12 @@ app.post('/v1/chat/completions', async (req, res) => {
 });
 
 // Generation stats endpoint
-app.get('/v1/generation/:id', async (req, res) => {
+app.get('/v1/generation', async (req, res) => {
     try {
-        const response = await axios.get(`${OPENROUTER_API_URL}/generation?id=${req.params.id}`, {
+        const response = await axios.get(`${OPENROUTER_API_URL}/generation?id=${req.query.id}`, {
             headers: {
                 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'HTTP-Referer': req.headers['referer'] || 'http://localhost:3000',
+                'HTTP-Referer': req.headers['referer'] || 'http://localhost:5050',
                 'X-Title': 'OpenRouter API Wrapper'
             }
         });
@@ -132,7 +132,7 @@ app.get('/v1/models', async (req, res) => {
         const response = await axios.get(`${OPENROUTER_API_URL}/models`, {
             headers: {
                 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'HTTP-Referer': req.headers['referer'] || 'http://localhost:3000',
+                'HTTP-Referer': req.headers['referer'] || 'http://localhost:5050',
                 'X-Title': 'OpenRouter API Wrapper'
             }
         });
