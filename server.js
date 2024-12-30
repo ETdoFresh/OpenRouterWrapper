@@ -35,9 +35,31 @@ app.post('/v1/chat/completions', async (req, res) => {
         if (req.body.stream === true) {
             let retryCount = 0;
             const maxRetries = 5;
-            const retryDelay = 2000; // 2 seconds
+            const baseRetryDelay = 1000; // 1 second base delay
+            let streamTimeout = null;
+            let lastDataTime = Date.now();
+
+            // Calculate exponential backoff delay
+            const getRetryDelay = (attempt) => {
+                return Math.min(baseRetryDelay * Math.pow(2, attempt), 10000); // Max 10 seconds
+            };
 
             const attemptStream = async () => {
+                const resetStreamTimeout = (streamResponse) => {
+                    if (streamTimeout) clearTimeout(streamTimeout);
+                    lastDataTime = Date.now();
+                    
+                    streamTimeout = setTimeout(() => {
+                        const timeSinceLastData = Date.now() - lastDataTime;
+                        if (timeSinceLastData >= 15000 && retryCount < maxRetries) { // 15 seconds timeout
+                            console.log(`🏴‍☠️ Stream timeout after ${timeSinceLastData}ms! Retry attempt ${retryCount + 1}/${maxRetries}`);
+                            retryCount++;
+                            streamResponse.data.destroy();
+                            setTimeout(attemptStream, getRetryDelay(retryCount));
+                        }
+                    }, 15000); // Check every 15 seconds
+                };
+
                 try {
                     const streamResponse = await axios.post(`${OPENROUTER_API_URL}/chat/completions`, req.body, {
                         headers: {
@@ -49,34 +71,36 @@ app.post('/v1/chat/completions', async (req, res) => {
                         responseType: 'stream'
                     });
 
-                    let hasStarted = false;
-                    const timeoutId = setTimeout(() => {
-                        if (!hasStarted && retryCount < maxRetries) {
-                            console.log(`🏴‍☠️ Stream timeout! Retry attempt ${retryCount + 1}/${maxRetries}`);
+                    // Initial timeout for connection establishment
+                    const initialTimeoutId = setTimeout(() => {
+                        if (retryCount < maxRetries) {
+                            console.log(`🏴‍☠️ Initial connection timeout! Retry attempt ${retryCount + 1}/${maxRetries}`);
                             retryCount++;
                             streamResponse.data.destroy();
-                            attemptStream();
+                            setTimeout(attemptStream, getRetryDelay(retryCount));
                         }
-                    }, retryDelay);
+                    }, 5000); // 5 seconds for initial connection
 
                     streamResponse.data.on('data', (chunk) => {
-                        hasStarted = true;
-                        clearTimeout(timeoutId);
+                        clearTimeout(initialTimeoutId);
+                        resetStreamTimeout(streamResponse);
                         res.write(chunk);
                     });
 
                     streamResponse.data.on('end', () => {
-                        clearTimeout(timeoutId);
+                        if (streamTimeout) clearTimeout(streamTimeout);
+                        clearTimeout(initialTimeoutId);
                         res.end();
                     });
 
                     streamResponse.data.on('error', (error) => {
-                        clearTimeout(timeoutId);
+                        if (streamTimeout) clearTimeout(streamTimeout);
+                        clearTimeout(initialTimeoutId);
                         console.error('Stream error:', error);
                         if (retryCount < maxRetries) {
                             console.log(`🏴‍☠️ Stream error! Retry attempt ${retryCount + 1}/${maxRetries}`);
                             retryCount++;
-                            attemptStream();
+                            setTimeout(attemptStream, getRetryDelay(retryCount));
                         } else {
                             console.error('All retry attempts failed!');
                             res.end();
@@ -86,7 +110,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     if (retryCount < maxRetries) {
                         console.log(`🏴‍☠️ Connection error! Retry attempt ${retryCount + 1}/${maxRetries}`);
                         retryCount++;
-                        attemptStream();
+                        setTimeout(attemptStream, getRetryDelay(retryCount));
                     } else {
                         console.error('All retry attempts failed!');
                         res.status(500).json({ error: 'Failed to establish stream after maximum retries' });
