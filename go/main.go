@@ -9,9 +9,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
@@ -25,6 +27,12 @@ const (
 var RETRY_DELAYS = []time.Duration{500 * time.Millisecond, 1000 * time.Millisecond, 3000 * time.Millisecond}
 
 func main() {
+	// Load .env file
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	r := mux.NewRouter()
 	
 	// Setup CORS
@@ -79,6 +87,10 @@ func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		requestBody["model"] = "deepseek-chat"
 		updatedBody, _ := json.Marshal(requestBody)
 		r.Body = io.NopCloser(bytes.NewBuffer(updatedBody)) // Reset body with updated model
+		// Add Deepseek API key to request body
+		requestBody["authorization"] = "Bearer " + os.Getenv("DEEPSEEK_API_KEY")
+		updatedBody, _ = json.Marshal(requestBody)
+		r.Body = io.NopCloser(bytes.NewBuffer(updatedBody))
 		resp, err := http.Post(DEEPSEEK_API_URL, "application/json", r.Body)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()

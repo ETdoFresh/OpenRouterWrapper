@@ -20,8 +20,9 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binary and .env from builder
 COPY --from=builder /app/main .
+COPY .env .
 
 EXPOSE 5050
 

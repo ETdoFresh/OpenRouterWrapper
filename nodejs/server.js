@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -31,7 +32,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                 const deepseekBody = {...req.body, model: 'deepseek-chat'};
                 const deepseekResponse = await axios.post(DEEPSEEK_API_URL, deepseekBody, {
                     headers: {
-                        'Authorization': `${req.headers['authorization']}`,
+                        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
                         'Content-Type': 'application/json'
                     },
                     responseType: req.body.stream === true ? 'stream' : 'json'
