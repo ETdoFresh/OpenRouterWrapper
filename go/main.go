@@ -87,11 +87,17 @@ func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		requestBody["model"] = "deepseek-chat"
 		updatedBody, _ := json.Marshal(requestBody)
 		r.Body = io.NopCloser(bytes.NewBuffer(updatedBody)) // Reset body with updated model
-		// Add Deepseek API key to request body
-		requestBody["authorization"] = "Bearer " + os.Getenv("DEEPSEEK_API_KEY")
-		updatedBody, _ = json.Marshal(requestBody)
-		r.Body = io.NopCloser(bytes.NewBuffer(updatedBody))
-		resp, err := http.Post(DEEPSEEK_API_URL, "application/json", r.Body)
+		// Create new request with proper headers
+		req, err := http.NewRequest("POST", DEEPSEEK_API_URL, r.Body)
+		if err != nil {
+			log.Printf("🏴‍☠️ Error creating DeepSeek request: %v", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer " + os.Getenv("DEEPSEEK_API_KEY"))
+		
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 			w.WriteHeader(resp.StatusCode)
