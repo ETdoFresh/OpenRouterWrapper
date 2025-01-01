@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,11 +17,12 @@ import (
 
 const (
 	OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
+	DEEPSEEK_API_URL   = "https://api.deepseek.com/chat/completions"
 	PORT               = ":5050"
-	MAX_RETRIES        = 5
-	BASE_RETRY_DELAY   = 500 * time.Millisecond
-	MAX_RETRY_DELAY    = 10 * time.Second
+	MAX_RETRIES        = 3
 )
+
+var RETRY_DELAYS = []time.Duration{500 * time.Millisecond, 1000 * time.Millisecond, 3000 * time.Millisecond}
 
 func main() {
 	r := mux.NewRouter()
@@ -51,11 +53,48 @@ func main() {
 func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 	stream := r.URL.Query().Get("stream") == "true"
 
+	// Check if model is deepseek-chat
+	var bodyBytes []byte
+	var err error
+	if r.Body != nil {
+		bodyBytes, err = io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset body for reuse
+	}
+
+	var requestBody map[string]interface{}
+	if len(bodyBytes) > 0 {
+		if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if model, ok := requestBody["model"].(string); ok && (model == "deepseek/deepseek-chat") {
+		// Try DeepSeek API first
+		// Update model to "deepseek-chat" for DeepSeek API
+		requestBody["model"] = "deepseek-chat"
+		updatedBody, _ := json.Marshal(requestBody)
+		r.Body = io.NopCloser(bytes.NewBuffer(updatedBody)) // Reset body with updated model
+		resp, err := http.Post(DEEPSEEK_API_URL, "application/json", r.Body)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			defer resp.Body.Close()
+			w.WriteHeader(resp.StatusCode)
+			io.Copy(w, resp.Body)
+			return
+		}
+		log.Println("🏴‍☠️ DeepSeek API failed, falling back to OpenRouter")
+	}
+
 	if stream {
 		handleStreamingChatCompletion(w, r)
 		return
 	}
 
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset body
 	proxyRequest(w, r, OPENROUTER_API_URL+"/chat/completions")
 }
 
@@ -178,9 +217,8 @@ func handleProxyError(w http.ResponseWriter, err error) {
 }
 
 func calculateRetryDelay(attempt int) time.Duration {
-	delay := BASE_RETRY_DELAY * time.Duration(1<<uint(attempt))
-	if delay > MAX_RETRY_DELAY {
-		return MAX_RETRY_DELAY
+	if attempt < len(RETRY_DELAYS) {
+		return RETRY_DELAYS[attempt]
 	}
-	return delay
+	return RETRY_DELAYS[len(RETRY_DELAYS)-1]
 }

@@ -10,8 +10,9 @@ app.use(cors());
 app.use(express.json({limit: '100mb'}));
 app.use(express.urlencoded({limit: '100mb', extended: true}));
 
-// OpenRouter API endpoint
+// API endpoints
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
 // Chat completion endpoint
 app.post('/v1/chat/completions', async (req, res) => {
@@ -21,6 +22,29 @@ app.post('/v1/chat/completions', async (req, res) => {
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
+        }
+
+        // Check if model is deepseek/deepseek-chat or deepseek-chat
+        if (req.body.model === 'deepseek/deepseek-chat') {
+            try {
+                // Update model to "deepseek-chat" for DeepSeek API
+                const deepseekBody = {...req.body, model: 'deepseek-chat'};
+                const deepseekResponse = await axios.post(DEEPSEEK_API_URL, deepseekBody, {
+                    headers: {
+                        'Authorization': `${req.headers['authorization']}`,
+                        'Content-Type': 'application/json'
+                    },
+                    responseType: req.body.stream === true ? 'stream' : 'json'
+                });
+
+                if (req.body.stream === true) {
+                    deepseekResponse.data.pipe(res);
+                    return;
+                }
+                return res.json(deepseekResponse.data);
+            } catch (error) {
+                console.log('🏴‍☠️ DeepSeek API failed, falling back to OpenRouter');
+            }
         }
 
         const response = await axios.post(`${OPENROUTER_API_URL}/chat/completions`, req.body, {
@@ -35,14 +59,14 @@ app.post('/v1/chat/completions', async (req, res) => {
 
         if (req.body.stream === true) {
             let retryCount = 0;
-            const maxRetries = 5;
-            const baseRetryDelay = 500; // 500ms base delay
+            const maxRetries = 3;
+            const retryDelays = [500, 1000, 3000]; // Retry delays in ms
             let streamTimeout = null;
             let lastDataTime = Date.now();
 
             // Calculate exponential backoff delay
             const getRetryDelay = (attempt) => {
-                return Math.min(baseRetryDelay * Math.pow(2, attempt), 10000); // Max 10 seconds
+                return retryDelays[attempt] || retryDelays[retryDelays.length - 1];
             };
 
             const attemptStream = async () => {
