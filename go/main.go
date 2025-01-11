@@ -10,12 +10,49 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
+
+// saveHistory saves request/response data to history directory
+func saveHistory(data interface{}, prefix string) error {
+	// Create history directory if it doesn't exist
+	if err := os.MkdirAll("history", 0755); err != nil {
+		return fmt.Errorf("failed to create history directory: %w", err)
+	}
+
+	// Generate filename with timestamp and prefix
+	timestamp := time.Now().Format("20060102-150405.000")
+	filename := fmt.Sprintf("%s-%s.json", timestamp, prefix)
+	path := filepath.Join("history", filename)
+
+	// Write file with atomic rename to prevent partial writes
+	tempFile, err := os.CreateTemp("history", "temp-*.json")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	encoder := json.NewEncoder(tempFile)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("failed to encode history data: %w", err)
+	}
+
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tempFile.Name(), path); err != nil {
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	return nil
+}
 
 const (
 	OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
@@ -73,6 +110,16 @@ func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset body for reuse
 	}
 
+	// Save request history
+	if err := saveHistory(map[string]interface{}{
+		"method":  r.Method,
+		"url":     r.URL.String(),
+		"headers": r.Header,
+		"body":    string(bodyBytes),
+	}, "request"); err != nil {
+		log.Printf("Failed to save request history: %v", err)
+	}
+
 	var requestBody map[string]interface{}
 	if len(bodyBytes) > 0 {
 		if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
@@ -117,11 +164,26 @@ func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStreamingChatCompletion(w http.ResponseWriter, r *http.Request) {
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
+	var finalResponse struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		Created int64  `json:"created"`
+		Model   string `json:"model"`
+		Choices []struct {
+			Index        int    `json:"index"`
+			Message      struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+	
 	for attempt := 0; attempt < MAX_RETRIES; attempt++ {
 		req, err := createProxyRequest(r, OPENROUTER_API_URL+"/chat/completions")
 		if err != nil {
@@ -143,31 +205,73 @@ func handleStreamingChatCompletion(w http.ResponseWriter, r *http.Request) {
 		}
 		defer resp.Body.Close()
 
-		// Create a channel to handle stream timeout
-		done := make(chan bool)
-		timeout := time.NewTimer(15 * time.Second)
-		
-		go func() {
-			// Stream the response
-			_, err = io.Copy(w, resp.Body)
-			done <- true
-		}()
+		// Read and process streamed response
+		decoder := json.NewDecoder(resp.Body)
+		for decoder.More() {
+			var chunk struct {
+				ID      string `json:"id"`
+				Object  string `json:"object"`
+				Created int64  `json:"created"`
+				Model   string `json:"model"`
+				Choices []struct {
+					Index        int    `json:"index"`
+					Delta        struct {
+						Role    string `json:"role"`
+						Content string `json:"content"`
+					} `json:"delta"`
+					FinishReason string `json:"finish_reason"`
+				} `json:"choices"`
+			}
+			
+			if err := decoder.Decode(&chunk); err != nil {
+				log.Printf("🏴‍☠️ Error decoding chunk: %v", err)
+				continue
+			}
 
-		select {
-		case <-done:
-			timeout.Stop()
-			return
-		case <-timeout.C:
-			log.Printf("🏴‍☠️ Stream timeout! Retry attempt %d/%d\n", attempt+1, MAX_RETRIES)
-			resp.Body.Close()
-			time.Sleep(calculateRetryDelay(attempt))
-			continue
+			// Initialize final response on first chunk
+			if finalResponse.ID == "" {
+				finalResponse.ID = chunk.ID
+				finalResponse.Object = chunk.Object
+				finalResponse.Created = chunk.Created
+				finalResponse.Model = chunk.Model
+				finalResponse.Choices = make([]struct {
+					Index        int    `json:"index"`
+					Message      struct {
+						Role    string `json:"role"`
+						Content string `json:"content"`
+					} `json:"message"`
+					FinishReason string `json:"finish_reason"`
+				}, len(chunk.Choices))
+			}
+
+			// Accumulate content for each choice
+			for i, choice := range chunk.Choices {
+				finalResponse.Choices[i].Index = choice.Index
+				finalResponse.Choices[i].Message.Content += choice.Delta.Content
+				if choice.Delta.Role != "" {
+					finalResponse.Choices[i].Message.Role = choice.Delta.Role
+				}
+				if choice.FinishReason != "" {
+					finalResponse.Choices[i].FinishReason = choice.FinishReason
+				}
+			}
 		}
 
+		// Save complete response history
+		if err := saveHistory(finalResponse, "response"); err != nil {
+			log.Printf("Failed to save response history: %v", err)
+		}
+
+		// Return complete response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		if err := json.NewEncoder(w).Encode(finalResponse); err != nil {
+			log.Printf("🏴‍☠️ Error encoding final response: %v", err)
+		}
 		return
 	}
 
-	http.Error(w, "Failed to establish stream after maximum retries", http.StatusInternalServerError)
+	http.Error(w, "Failed to get complete response after maximum retries", http.StatusInternalServerError)
 }
 
 func handleGeneration(w http.ResponseWriter, r *http.Request) {
@@ -193,9 +297,23 @@ func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string) {
 	}
 	defer resp.Body.Close()
 
+	// Capture response
+	var respBody bytes.Buffer
+	tee := io.TeeReader(resp.Body, &respBody)
+
+	// Save response history
+	if err := saveHistory(map[string]interface{}{
+		"status":     resp.Status,
+		"headers":    resp.Header,
+		"body":       respBody.String(),
+		"target_url": targetURL,
+	}, "response"); err != nil {
+		log.Printf("Failed to save response history: %v", err)
+	}
+
 	copyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	io.Copy(w, tee)
 }
 
 func createProxyRequest(r *http.Request, targetURL string) (*http.Request, error) {

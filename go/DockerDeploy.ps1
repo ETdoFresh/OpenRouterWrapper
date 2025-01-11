@@ -26,6 +26,7 @@ try {
         --name $containerName `
         -p "${port}:${port}" `
         --restart unless-stopped `
+        -v ${PWD}/history:/app/history `
         $imageName
 
     # Check if container is running
