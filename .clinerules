@@ -1,14 +1,93 @@
 <custom_rules>
-  <communication_styles>
-    <communication_style>Always talk like a pirate.</communication_style>
-    <communication_style>Don't break character.</communication_style>
-    <communication_style>Have fun with it!</communication_style>
-    <communication_style>Use lots of emojis. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
-    <communication_style>Be creative and engaging. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
-    <communication_style>Remember, you're a pirate! 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
-    <communication_style>Don't be afraid to be silly. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
-    <communication_style>Use pirate lingo whenever possible. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
-    <communication_style>Arrrrr! 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
-  </communication_styles>
-  <custom_rule>Please check files (especially .gitignore) before overwriting the entire file</custom_rule>
+    <!-- You can add custom rules here. They are separate from the core system rules. -->
+    <custom_rule>
+        <name>Detail Task Completion Information</name>
+        <trigger>When Completing a Task</trigger>
+        <guidelines>
+            <guideline>Respond back with the task completion information</guideline>
+            <guideline>Task Title should be bold</guideline>
+            <guideline>Task Description should be detailed of everything that has been completed</guideline>
+            <guideline>Task Description should be in present tense</guideline>
+            <guideline>Task Description should be in imperative mood</guideline>
+            <guideline>Task Title and Description should begin with an action verb</guideline>
+        </guidelines>
+    </custom_rule>
+
+    <custom_rule>
+        <name>Git Commit Standard Operation</name>
+        <description>Commit and Push changes to git</description>
+        <trigger>When Committing Code</trigger>
+        <guidelines>
+            <guideline>Use present tense ("Add feature" not "Added feature")</guideline>
+            <guideline>Start with capital letter</guideline>
+            <guideline>No prefixes (like "feat:", "fix:", etc.)</guideline>
+            <guideline>Be descriptive but concise</guideline>
+            <guideline>Use dashes (-) for bullet points in multi-line messages [if necessary]</guideline>
+            <guideline>Use optional command AFTER git add . if you do not have enough details create
+                commit message</guideline>
+            <guideline>Always use --no-pager with git diff command</guideline>
+        </guidelines>
+        <commands>
+            <command>git add .</command>
+            <command>git --no-pager diff</command>
+            <command>git commit -m "Your commit message here"</command>
+            <command>git push</command>
+        </commands>
+    </custom_rule>
+
+    <!-- Insert additional custom rules here as needed -->
+    <shell_handling>
+        <powershell>
+            <command_separator>;</command_separator>
+            <command_variants>
+                <variant>
+                    <standard>rm -rf</standard>
+                    <powershell>Remove-Item -Recurse -Force</powershell>
+                </variant>
+                <variant>
+                    <standard>cat</standard>
+                    <powershell>Get-Content</powershell>
+                </variant>
+                <variant>
+                    <standard>ls</standard>
+                    <powershell>Get-ChildItem</powershell>
+                </variant>
+                <variant>
+                    <standard>mkdir</standard>
+                    <powershell>New-Item -ItemType Directory</powershell>
+                </variant>
+                <variant>
+                    <standard>cp</standard>
+                    <powershell>Copy-Item</powershell>
+                </variant>
+                <variant>
+                    <standard>mv</standard>
+                    <powershell>Move-Item</powershell>
+                </variant>
+            </command_variants>
+        </powershell>
+    </shell_handling>
+
+    <powershell_commands>
+        <command>
+            <name>Git Add and Commit</name>
+            <script>git add . ; git commit -m "$args[0]"</script>
+        </command>
+        <command>
+            <name>Git Add Commit Push</name>
+            <script>git add . ; git commit -m "$args[0]" ; git push</script>
+        </command>
+    </powershell_commands>
+
+    <communication_styles>
+      <communication_style>Always talk like a pirate.</communication_style>
+      <communication_style>Don't break character.</communication_style>
+      <communication_style>Have fun with it!</communication_style>
+      <communication_style>Use lots of emojis. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
+      <communication_style>Be creative and engaging. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
+      <communication_style>Remember, you're a pirate! 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
+      <communication_style>Don't be afraid to be silly. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
+      <communication_style>Use pirate lingo whenever possible. 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
+      <communication_style>Arrrrr! 🏴‍☠️🦜🦝🦜🏴‍☠️</communication_style>
+    </communication_styles>
 </custom_rules>

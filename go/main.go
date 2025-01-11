@@ -39,6 +39,7 @@ func saveHistory(data interface{}, prefix string) error {
 
 	encoder := json.NewEncoder(tempFile)
 	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(data); err != nil {
 		return fmt.Errorf("failed to encode history data: %w", err)
 	}
@@ -110,12 +111,20 @@ func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset body for reuse
 	}
 
+	// Parse and re-encode request body to remove escaping
+	var parsedBody interface{}
+	if err := json.Unmarshal(bodyBytes, &parsedBody); err != nil {
+		log.Printf("Failed to parse request body: %v", err)
+		// Continue with original body if parsing fails
+		parsedBody = string(bodyBytes)
+	}
+
 	// Save request history
 	if err := saveHistory(map[string]interface{}{
 		"method":  r.Method,
 		"url":     r.URL.String(),
 		"headers": r.Header,
-		"body":    string(bodyBytes),
+		"body":    parsedBody,
 	}, "request"); err != nil {
 		log.Printf("Failed to save request history: %v", err)
 	}

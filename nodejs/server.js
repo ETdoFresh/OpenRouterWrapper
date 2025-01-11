@@ -22,8 +22,11 @@ const saveHistory = (data, prefix) => {
     const tempFilePath = path.join('history', `temp-${Date.now()}.json`);
 
     try {
-        // Write to temp file first
-        fs.writeFileSync(tempFilePath, JSON.stringify(data, null, 2), 'utf8');
+        // Parse and re-encode data to remove escaping
+        const processedData = JSON.parse(JSON.stringify(data));
+        
+        // Write to temp file
+        fs.writeFileSync(tempFilePath, JSON.stringify(processedData, null, 2), 'utf8');
         
         // Rename temp file to final destination
         fs.renameSync(tempFilePath, filePath);
