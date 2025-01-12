@@ -8,22 +8,43 @@ const path = require('path');
 const app = express();
 const port = 5050;
 
-// Helper function to save history
-const saveHistory = (data, prefix) => {
+// Helper function to save conversation history
+const saveConversationHistory = (request, response) => {
     // Create history directory if it doesn't exist
     if (!fs.existsSync('history')) {
         fs.mkdirSync('history', { recursive: true });
     }
 
-    // Generate filename with timestamp and prefix
-    const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
-    const filename = `${timestamp}-${prefix}.json`;
+    // Use generation ID for filename
+    const generationId = response.data.id;
+    if (!generationId) {
+        console.error('No generation ID found in response');
+        return;
+    }
+    const filename = `${generationId}.json`;
     const filePath = path.join('history', filename);
     const tempFilePath = path.join('history', `temp-${Date.now()}.json`);
 
     try {
+        // Combine request and response data
+        const historyData = {
+            request: {
+                method: request.method,
+                url: request.originalUrl,
+                headers: request.headers,
+                body: request.body,
+                timestamp: new Date().toISOString()
+            },
+            response: {
+                status: response.status,
+                headers: response.headers,
+                data: response.data,
+                timestamp: new Date().toISOString()
+            }
+        };
+
         // Parse and re-encode data to remove escaping
-        const processedData = JSON.parse(JSON.stringify(data));
+        const processedData = JSON.parse(JSON.stringify(historyData));
         
         // Write to temp file
         fs.writeFileSync(tempFilePath, JSON.stringify(processedData, null, 2), 'utf8');
@@ -55,13 +76,6 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 // Chat completion endpoint
 app.post('/v1/chat/completions', async (req, res) => {
     try {
-        // Save request history
-        saveHistory({
-            method: req.method,
-            url: req.originalUrl,
-            headers: req.headers,
-            body: req.body
-        }, 'request');
         // Check if model is deepseek/deepseek-chat or deepseek-chat
         if (req.body.model === 'deepseek/deepseek-chat') {
             try {
@@ -75,12 +89,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                     responseType: 'json'
                 });
 
-                // Save response history
-                saveHistory({
-                    status: deepseekResponse.status,
-                    headers: deepseekResponse.headers,
-                    data: deepseekResponse.data
-                }, 'response');
+                // Save conversation history
+                saveConversationHistory(req, deepseekResponse);
 
                 return res.json(deepseekResponse.data);
             } catch (error) {
@@ -151,12 +161,12 @@ app.post('/v1/chat/completions', async (req, res) => {
                 });
 
                 response.data.on('end', () => {
-                    // Save complete response history
-                    saveHistory({
+                    // Save complete conversation history
+                    saveConversationHistory(req, {
                         status: response.status,
                         headers: response.headers,
                         data: finalResponse
-                    }, 'response');
+                    });
 
                     res.json(finalResponse);
                 });
