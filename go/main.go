@@ -121,6 +121,8 @@ func handleChatCompletion(w http.ResponseWriter, r *http.Request) {
 		parsedBody = string(bodyBytes)
 	}
 
+	stream = stream || (parsedBody != nil && parsedBody.(map[string]interface{})["stream"] == true)
+
 	var requestBody map[string]interface{}
 	if len(bodyBytes) > 0 {
 		if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
@@ -397,7 +399,9 @@ func proxyRequest(w http.ResponseWriter, r *http.Request, targetURL string, time
 		if respMap, ok := responseBody.(map[string]interface{}); ok {
 			if choices, ok := respMap["choices"].([]interface{}); ok && len(choices) > 0 {
 				if choice, ok := choices[0].(map[string]interface{}); ok {
-					responseMessage = choice["message"]
+					if message, ok := choice["message"].(map[string]interface{}); ok {
+						responseMessage = message
+					}
 				}
 			}
 		}
